@@ -66,7 +66,24 @@ if BRANDING:
 	OMB_GETMACHINENAME = getMachineName()
 	OMB_GETOEVERSION = getOEVersion()
 else:
-	OMB_GETIMAGEFILESYSTEM = "tar.bz2"
+	OMB_GETMACHINEKERNELFILE = "kernel.bin"
+	OMB_GETMACHINEROOTFILE = "rootfs.bin"
+	OMB_GETIMAGEFOLDER = ""
+	BOX_NAME = "dm800se"
+	OMB_GETBOXTYPE = "dm800se"
+	BOX_MODEL = "dreambox"
+	OMB_GETBRANDOEM = "dreambox"
+	OMB_GETIMAGEDISTRO = "openpli"
+	OMB_GETIMAGEVERSION = "7.1"
+	OMB_GETMACHINEMTDKERNEL = "mtd2"
+	OMB_GETMACHINEMTDROOT = ""
+	OMB_GETMACHINEBUILD = "dm800se"
+	OMB_GETMACHINEPROCMODEL = "dm800se"
+	OMB_GETMACHINEBRAND = "dreambox"
+	OMB_GETMACHINENAME = "dm800se"
+	OMB_GETOEVERSION = "OE-Alliance 4.3"
+
+	OMB_GETIMAGEFILESYSTEM = "jffs2"
 	f=open("/proc/mounts","r")
 	for line in f:
 		if line.find("rootfs")>-1:
@@ -83,6 +100,7 @@ else:
 				OMB_GETIMAGEFILESYSTEM = "tar.xz"
 				break
 	f.close()
+	
 
 OMB_DD_BIN = '/bin/dd'
 OMB_CP_BIN = '/bin/cp'
