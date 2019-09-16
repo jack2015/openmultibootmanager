@@ -76,6 +76,13 @@ else:
 			if line.find("jffs2")>-1:
 				OMB_GETIMAGEFILESYSTEM = "jffs2"
 				break
+			if line.find("tar.bz2")>-1:
+				OMB_GETIMAGEFILESYSTEM = "tar.bz2"
+				break
+			if line.find("tar.xz")>-1:
+				OMB_GETIMAGEFILESYSTEM = "tar.xz"
+				break
+	f.close()
 
 OMB_DD_BIN = '/bin/dd'
 OMB_CP_BIN = '/bin/cp'
