@@ -107,6 +107,7 @@ case $1 in
 			echo >&2 "install-nfidump: download failed"
 			exit 1
 		else
+			opkg remove nfidump
 			opkg install /tmp/nfidump_1.0_all.ipk
 		fi
 		exit 0
