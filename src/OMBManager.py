@@ -23,15 +23,17 @@
 from Components.Harddisk import harddiskmanager
 
 from Screens.MessageBox import MessageBox
-
+from Screens.Console import Console
 from OMBManagerList import OMBManagerList
 from OMBManagerCommon import OMB_MAIN_DIR, OMB_DATA_DIR, OMB_UPLOAD_DIR
-from OMBManagerInstall import OMB_GETIMAGEFILESYSTEM, BRANDING, OMB_UNJFFS2_BIN
+from OMBManagerInstall import OMB_GETIMAGEFILESYSTEM, OMB_UNJFFS2_BIN, BRANDING, OMB_NFIDUMP_BIN, BOX_NAME, BOX_MODEL
 from OMBManagerLocale import _
 
 from enigma import eTimer
 
 import os
+
+loadScript = "/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/install-nandsim.sh"
 
 class OMBManagerInit:
 	def __init__(self, session):
@@ -148,21 +150,36 @@ class OMBManagerKernelModule:
 
 	def installCallback(self, confirmed):
 		if confirmed:
-			self.messagebox = self.session.open(MessageBox,_('Please wait while installation is in progress.'), MessageBox.TYPE_INFO, enable_input = False)
+			if self.kernel_module != "nfidump":
+				self.messagebox = self.session.open(MessageBox,_('Please wait while installation is in progress.'), MessageBox.TYPE_INFO, enable_input = False)
 			self.timer = eTimer()
 			self.timer.callback.append(self.installModule)
-			self.timer.start(100)
-			
+			self.timer.start(100, True)
+
 	def installModule(self):
 		self.timer.stop()
 		self.error_message = ''
-		if os.system('opkg update && opkg install ' + self.kernel_module) != 0:
+		if self.kernel_module == "nfidump":
+			os.system("chmod 755 %s" % loadScript)
+			cmd = 'opkg update && opkg install python-subprocess\n'
+			cmd += "%s dmm_nfidump" % loadScript
+			text = _("Install")
+			self.session.openWithCallback(self.afterLoadNfidumpInstall, Console, text, [cmd])
+			return
+		os.system('opkg update && opkg install python-subprocess')
+		if os.system('opkg install ' + self.kernel_module) != 0:
 			self.error_message = _('Cannot install ') + self.kernel_module
-		
 		self.messagebox.close()
 		self.timer = eTimer()
 		self.timer.callback.append(self.afterInstall)
-		self.timer.start(100)
+		self.timer.start(100, True)
+
+	def afterLoadNfidumpInstall(self):
+		if not os.path.exists(OMB_NFIDUMP_BIN):
+			self.error_message = _('Cannot install ') + self.kernel_module
+			self.session.open(MessageBox, self.error_message, type = MessageBox.TYPE_ERROR)
+		else:
+			OMBManager(self.session)
 			
 	def afterInstall(self):
 		self.timer.stop()
@@ -179,11 +196,22 @@ def OMBManager(session, **kwargs):
 	found = False
 
 	kernel_module = 'kernel-module-nandsim'
-	if "jffs2" in OMB_GETIMAGEFILESYSTEM:
-		kernel_module = None
+	if "jffs2" in OMB_GETIMAGEFILESYSTEM and BOX_MODEL != "dreambox":
+		if os.path.exists(OMB_UNJFFS2_BIN):
+			kernel_module = None
+		else:
+			kernel_module = 'kernel-module-block2mtd'
 
 	if "tar.bz2" in OMB_GETIMAGEFILESYSTEM:
 		kernel_module = None
+		
+	# When use nfidump
+	if BOX_MODEL == "dreambox":
+		kernel_module = None
+		if BOX_NAME == "dm500hd" or BOX_NAME == "dm800" or BOX_NAME == "dm800se" or BOX_NAME == "dm7020hd" or BOX_NAME == "dm7020hdv2" or BOX_NAME == "dm8000" or "dm500hdv2" or BOX_NAME == "dm800sev2":
+			if not os.path.exists(OMB_NFIDUMP_BIN):
+				OMBManagerKernelModule(session, "nfidump")
+				return
 	
 	if kernel_module and os.system('opkg list_installed | grep ' + kernel_module) != 0 and BRANDING:
 		OMBManagerKernelModule(session, kernel_module)

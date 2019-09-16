@@ -37,6 +37,7 @@ from enigma import eTimer
 import os
 import glob
 import struct
+import fileinput
 
 try:
 	from boxbranding import *
@@ -46,7 +47,9 @@ except:
 
 if BRANDING:
 	OMB_GETBOXTYPE = getBoxType()
+	BOX_NAME = getBoxType()
 	OMB_GETBRANDOEM = getBrandOEM()
+	BOX_MODEL = getBrandOEM()
 	OMB_GETIMAGEDISTRO = getImageDistro()
 	OMB_GETIMAGEVERSION = getImageVersion()
 	OMB_GETIMAGEFILESYSTEM = getImageFileSystem() # needed
@@ -74,30 +77,6 @@ else:
 				OMB_GETIMAGEFILESYSTEM = "jffs2"
 				break
 
-#
-# SAMPLE-DATA BOXBRANDING
-#
-# getMachineBuild=gbquadplus<
-# getMachineProcModel=gbquadplus<
-# getMachineBrand=GigaBlue<
-# getMachineName=Quad Plus<
-# getMachineMtdKernel=mtd2<
-# getMachineKernelFile=kernel.bin<
-# getMachineMtdRoot=mtd0<
-# getMachineRootFile=rootfs.bin<
-# getMachineMKUBIFS=-m 2048 -e 126976 -c 4000 -F<
-# getMachineUBINIZE=-m 2048 -p 128KiB<
-# getBoxType=gbquadplus<
-# getBrandOEM=gigablue<
-# getOEVersion=OE-Alliance 2.3<
-# getDriverDate=20140828<
-# getImageVersion=4.2<
-# getImageBuild=1<
-# getImageDistro=openmips<
-# getImageFolder=gigablue/quadplus<
-# getImageFileSystem=ubi<
-# 
-
 OMB_DD_BIN = '/bin/dd'
 OMB_CP_BIN = '/bin/cp'
 OMB_RM_BIN = '/bin/rm'
@@ -113,6 +92,7 @@ OMB_LOSETUP_BIN = '/sbin/losetup'
 OMB_ECHO_BIN = '/bin/echo'
 OMB_MKNOD_BIN = '/bin/mknod'
 OMB_UNJFFS2_BIN = '/usr/bin/unjffs2'
+OMB_NFIDUMP_BIN = '/usr/sbin/nfidump'
 
 class OMBManagerInstall(Screen):
 	skin = """
@@ -243,21 +223,60 @@ class OMBManagerInstall(Screen):
 			return
 
 		nfifile = glob.glob('%s/*.nfi' % tmp_folder)
+		tarxzfile = glob.glob('%s/*.rootfs.tar.xz' % tmp_folder)
 		if nfifile:
-			if not self.extractImageNFI(nfifile[0], tmp_folder):
-				self.showError(_("Cannot extract nfi image"))
+			if BOX_MODEL != "dreambox":
+				self.showError(_("Your STB doesn\'t seem supported"))
 				return
+			if BOX_NAME == "dm800" or BOX_NAME == "dm500hd" or BOX_NAME == "dm800se" or BOX_NAME == "dm7020hd" or BOX_NAME == "dm7020hdv2" or BOX_NAME == "dm8000" or "dm500hdv2" or BOX_NAME == "dm800sev2":
+				if os.path.exists(OMB_NFIDUMP_BIN): # When use nfidump
+					os.system(OMB_NFIDUMP_BIN + ' -s ' + nfifile[0] + ' ' + target_folder)
+					if not os.path.exists(target_folder + "/usr/bin/enigma2"):
+						self.showError(_("Cannot extract nfi image"))
+						os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+					else:
+						self.afterInstallImage(target_folder)
+						os.system(OMB_RM_BIN + ' -f ' + source_file)
+						os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+						self.messagebox.close()
+						self.close()
+					return
+				if not self.extractImageNFI(nfifile[0], tmp_folder):
+					self.showError(_("Cannot extract nfi image"))
+					os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+				else:
+					if not os.path.exists(target_folder + "/usr/bin/enigma2"):
+						self.showError(_("Cannot extract nfi image"))
+						os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+					else:
+						self.afterInstallImage(target_folder)
+						os.system(OMB_RM_BIN + ' -f ' + source_file)
+						os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+						self.messagebox.close()
+						self.close()
 			else:
-				os.system(OMB_RM_BIN + ' -f ' + source_file)
-				self.afterInstallImage(target_folder)
-				self.messagebox.close()
-				self.close()
+				self.showError(_("Your STB doesn\'t seem supported"))
+		if tarxzfile:
+			if os.system(OMB_TAR_BIN + ' xpJf %s -C %s' % (tarxzfile[0], target_folder)) != 0:
+				if not os.path.exists(target_folder + "/usr/bin/enigma2"):
+					self.showError(_("Error unpacking rootfs"))
+					os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+				else:
+					self.afterInstallImage(target_folder)
+					os.system(OMB_RM_BIN + ' -f ' + source_file)
+					os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+					self.messagebox.close()
+					self.close()
+			else:
+				self.showError(_("Error unpacking rootfs"))
+				os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 		elif self.installImage(tmp_folder, target_folder, kernel_target_file, tmp_folder):
 			os.system(OMB_RM_BIN + ' -f ' + source_file)
+			os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 			self.messagebox.close()
 			self.close()
-
-		os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
+		else:
+			os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 
 	def installImage(self, src_path, dst_path, kernel_dst_path, tmp_folder):
 		if "ubi" in OMB_GETIMAGEFILESYSTEM:
@@ -283,8 +302,6 @@ class OMBManagerInstall(Screen):
 			if os.system(OMB_CP_BIN + ' ' + kernel_path + ' ' + kernel_dst_path) != 0:
 				self.showError(_("Error copying kernel"))
 				return False
-
-		self.dirtyHack(dst_path)
 
 		return True
 
@@ -370,7 +387,6 @@ class OMBManagerInstall(Screen):
 			cmd = 'rm -rf ' + ubi_path
 			rc = os.system(cmd)
 			os.system(OMB_CP_BIN + ' ' + kernel_path + ' ' + kernel_dst_path)
-			self.dirtyHack(dst_path)
 			return True
 
 		virtual_mtd = tmp_folder + '/virtual_mtd'
@@ -402,26 +418,22 @@ class OMBManagerInstall(Screen):
 		os.system(OMB_UBIDETACH_BIN + ' -m ' + mtd)
 		os.system(OMB_RMMOD_BIN + ' nandsim')
 
-		self.dirtyHack(dst_path)
-
 		self.afterInstallImage(dst_path)
 
 		return rc
 
-	# Based on nfi Extract by gutemine
 	def extractImageNFI(self, nfifile, extractdir):
 		nfidata = open(nfifile, 'r')
 		header = nfidata.read(32)
 		if header[:3] != 'NFI':
-			print 'Sorry, old NFI format deteced'
+			print '[OMB] Sorry, old NFI format deteced'
 			nfidata.close()
 			return False
 		else:
 			machine_type = header[4:4+header[4:].find('\0')]
 			if header[:4] == 'NFI3':
 				machine_type = 'dm7020hdv2'
-
-		print 'Dreambox image type: %s' % machine_type
+		print '[OMB] Dreambox image type: %s' % machine_type
 		if machine_type == 'dm800' or machine_type == 'dm500hd' or machine_type == 'dm800se':
 			self.esize = '0x4000,0x200'
 			self.vid_offset = '512'
@@ -444,20 +456,18 @@ class OMBManagerInstall(Screen):
 			self.nandsim_parm = 'first_id_byte=0xec second_id_byte=0xd3 third_id_byte=0x51 fourth_id_byte=0x95'
 			bs = 2048
 			bso = 2112
-
 		(total_size, ) = struct.unpack('!L', nfidata.read(4))
-		print 'Total image size: %s Bytes' % total_size
-
+		print '[OMB] Total image size: %s Bytes' % total_size
 		part = 0
 		while nfidata.tell() < total_size:
 			(size, ) = struct.unpack('!L', nfidata.read(4))
-			print 'Processing partition # %d size %d Bytes' % (part, size)
+			print '[OMB] Processing partition # %d size %d Bytes' % (part, size)
 			output_names = { 2: 'kernel.bin', 3: 'rootfs.bin' }
 			if part not in output_names:
 				nfidata.seek(size, 1)
-				print 'Skipping %d data...' % size
+				print '[OMB] Skipping %d data...' % size
 			else:
-				print 'Extracting %s with %d blocksize...' % (output_names[part], bs)
+				print '[OMB] Extracting %s with %d blocksize...' % (output_names[part], bs)
 				output_filename = extractdir + '/' + output_names[part]
 				if os.path.exists(output_filename):
 					os.remove(output_filename)
@@ -470,36 +480,27 @@ class OMBManagerInstall(Screen):
 						output.write(d[:bs])
 				output.close()
 			part = part + 1
-
 		nfidata.close()
-		print 'Extracting %s to %s Finished!' % (nfifile, extractdir)
-
+		print '[OMB] Extracting %s to %s Finished!' % (nfifile, extractdir)
 		return True
 
-	def dirtyHack(self, dst_path):
-# WARNING: dirty hack by Meo
-#
-# In a perfect world all the images are perfect and do their work.
-# But this is not a perfect world and we have to help OMB to
-# prevent funny cases for non standard images.
-# My apologies to Sandro for this bad code.
-
-		if not os.path.exists('/usr/lib/python2.7/boxbranding.so'):
+	def afterInstallImage(self, dst_path=""):
+		if not os.path.exists(dst_path + "/sbin"):
+			return
+		if not os.path.exists('/usr/lib/python2.7/boxbranding.so') and os.path.exists('/usr/lib/enigma2/python/boxbranding.so'):
 			os.system("ln -s /usr/lib/enigma2/python/boxbranding.so /usr/lib/python2.7/boxbranding.so")
-		if os.path.exists(dst_path + '/usr/lib/python2.7/boxbranding.py'):
+		if os.path.exists(dst_path + '/usr/lib/python2.7/boxbranding.py') and os.path.exists('/usr/lib/enigma2/python/boxbranding.so'):
 			os.system("cp /usr/lib/enigma2/python/boxbranding.so " + dst_path + "/usr/lib/python2.7/boxbranding.so")
 			os.system("rm -f " + dst_path + '/usr/lib/python2.7/boxbranding.py')
-		if not os.path.exists(dst_path + "/usr/lib/python2.7/subprocess.pyo"):
+		if not os.path.exists(dst_path + "/usr/lib/python2.7/subprocess.pyo") and os.path.exists("/usr/lib/python2.7/subprocess.pyo"):
 			os.system("cp /usr/lib/python2.7/subprocess.pyo " + dst_path + "/usr/lib/python2.7/subprocess.pyo")
-# openmultiboot installed in the multiboot image. where the init will go ?
-		if os.path.exists(dst_path + '/sbin/open_multiboot'):
+		if os.path.isfile(dst_path + '/sbin/open_multiboot'):
 			os.system("rm -f " + dst_path + '/sbin/open_multiboot')
+			os.system("rm -f " + dst_path + '/sbin/init')
+			os.system('ln -s ' + dst_path + '/sbin/init.sysvinit ' + dst_path + '/sbin/init')
+		if os.path.isfile(dst_path + '/sbin/open-multiboot-branding-helper.py'):
 			os.system("rm -f " + dst_path + '/sbin/open-multiboot-branding-helper.py')
-			os.system("rm -f " + dst_path + '/etc/ipk-postinsts/*-openmultiboot')
-# We can't create the init symlink because it will be overwrited by openmultiboot
-			os.system('ln -sfn /sbin/init.sysvinit ' + dst_path + '/sbin/open_multiboot')
-
-	def afterInstallImage(self, dst_path):
+		os.system('cp /usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/open-multiboot-branding-helper.py ' + dst_path + '/sbin/open-multiboot-branding-helper.py')
 		fix = False
 		error = False
 		file = dst_path + '/etc/init.d/volatile-media.sh'
@@ -514,7 +515,6 @@ class OMBManagerInstall(Screen):
 			except:
 				error = True
 			if not fix and not error:
-				import fileinput
 				for line in fileinput.input(file, inplace=True):
 					if 'mount -t tmpfs -o size=64k tmpfs /media' in line:
 						print "mountpoint -q \"/media\" || mount -t tmpfs -o size=64k tmpfs /media"
