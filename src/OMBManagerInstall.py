@@ -81,7 +81,9 @@ else:
 	OMB_GETMACHINEPROCMODEL = "dm800se"
 	OMB_GETMACHINEBRAND = "dreambox"
 	OMB_GETMACHINENAME = "dm800se"
-	OMB_GETOEVERSION = "OE-Alliance 4.3"
+	OMB_GETOEVERSION = "PLi-OE"
+	
+	BRANDING = True
 
 	OMB_GETIMAGEFILESYSTEM = "jffs2"
 	f=open("/proc/mounts","r")
