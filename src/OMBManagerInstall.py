@@ -66,6 +66,23 @@ if BRANDING:
 	OMB_GETMACHINENAME = getMachineName()
 	OMB_GETOEVERSION = getOEVersion()
 else:
+	OMB_GETMACHINEKERNELFILE = "kernel.bin"
+	OMB_GETMACHINEROOTFILE = "rootfs.tar.bz2"
+	OMB_GETIMAGEFOLDER = "dm900"
+	BOX_NAME = "dm900"
+	OMB_GETBOXTYPE = "dm900"
+	BOX_MODEL = "dreambox"
+	OMB_GETBRANDOEM = "dreambox"
+	OMB_GETIMAGEDISTRO = "openpli"
+	OMB_GETIMAGEVERSION = "7.1"
+	OMB_GETMACHINEMTDKERNEL = "mmcblk0p1"
+	OMB_GETMACHINEMTDROOT = "mmcblk0p2"
+	OMB_GETMACHINEBUILD = "dm900"
+	OMB_GETMACHINEPROCMODEL = "dm900"
+	OMB_GETMACHINEBRAND = "Dreambox"
+	OMB_GETMACHINENAME = "DM900"
+	OMB_GETOEVERSION = "PLi-OE"
+
 	OMB_GETIMAGEFILESYSTEM = "tar.bz2"
 	f=open("/proc/mounts","r")
 	for line in f:
@@ -83,6 +100,7 @@ else:
 				OMB_GETIMAGEFILESYSTEM = "tar.xz"
 				break
 	f.close()
+	
 
 OMB_DD_BIN = '/bin/dd'
 OMB_CP_BIN = '/bin/cp'
@@ -496,6 +514,8 @@ class OMBManagerInstall(Screen):
 			return
 		if not os.path.exists('/usr/lib/python2.7/boxbranding.so') and os.path.exists('/usr/lib/enigma2/python/boxbranding.so'):
 			os.system("ln -s /usr/lib/enigma2/python/boxbranding.so /usr/lib/python2.7/boxbranding.so")
+		if not os.path.exists(dst_path + '/usr/sbin/nfidump') and os.path.exists('/usr/sbin/nfidump'):
+			os.system("cp /usr/sbin/nfidump " + dst_path + "/usr/sbin/nfidump")
 		if os.path.exists(dst_path + '/usr/lib/python2.7/boxbranding.py') and os.path.exists('/usr/lib/enigma2/python/boxbranding.so'):
 			os.system("cp /usr/lib/enigma2/python/boxbranding.so " + dst_path + "/usr/lib/python2.7/boxbranding.so")
 			os.system("rm -f " + dst_path + '/usr/lib/python2.7/boxbranding.py')
