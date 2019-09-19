@@ -82,6 +82,8 @@ else:
 	OMB_GETMACHINEBRAND = "Dreambox"
 	OMB_GETMACHINENAME = "DM900"
 	OMB_GETOEVERSION = "PLi-OE"
+	
+	BRANDING = True
 
 	OMB_GETIMAGEFILESYSTEM = "tar.bz2"
 	f=open("/proc/mounts","r")
