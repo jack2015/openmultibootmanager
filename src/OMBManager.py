@@ -222,21 +222,27 @@ def OMBManager(session, **kwargs):
 		session.open(OMBManagerList, OMB_MAIN_DIR)
 		found = True
 	else:
-		for partition in harddiskmanager.getMountedPartitions():
-			if partition.mountpoint != '/':
-				data_dir = partition.mountpoint + '/' + OMB_DATA_DIR
-				if os.path.exists(data_dir):
+		for p in harddiskmanager.getMountedPartitions():
+			if p and p.device and p.mountpoint != '/' and (p.device[:2] == 'sd' or (p.device.startswith('mmcblk0p') and BOX_NAME not in ('5008', 'et13000', 'et11000',' et1x000', 'uno4k', 'uno4kse', 'ultimo4k', 'solo4k', 'zero4k', 'hd51', 'hd52', 'dm820', 'dm7080', 'sf4008', 'dm900', 'dm920', 'gb7252', 'lunix3-4k', 'vs1500', 'h7', '8100s'))):
+				data_dir = p.mountpoint + '/' + OMB_DATA_DIR
+				if os.path.exists(data_dir) and os.access(p.mountpoint, os.F_OK|os.R_OK) and isMounted(p.mountpoint):
 					if not os.path.ismount('/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot'):
 						if os.readlink("/sbin/init") == "/sbin/init.sysvinit":
 							if os.path.isfile('/sbin/open_multiboot'):
 								os.system("ln -sfn /sbin/open_multiboot /sbin/init")
-					session.open(OMBManagerList, partition.mountpoint)
+					session.open(OMBManagerList, p.mountpoint)
 					found = True
 					break
-				
 	if not found:
-# by meo: Allow plugin installation only for images in flash. We don't need plugin in mb installed images.
-# The postinst link creation in open_multiboot will be also disabled to avoid conflicts between init files.
 		if not os.path.ismount('/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot'):
 			OMBManagerInit(session)
+
+def isMounted(device):
+	try:
+		for line in open("/proc/mounts"):
+			if line.find(device[:-1]) > -1:
+				return True
+	except:
+		pass
+	return False
 
