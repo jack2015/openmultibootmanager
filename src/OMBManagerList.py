@@ -50,7 +50,7 @@ config.plugins.omb.alternative_image_folder = ConfigText(default = OMB_GETIMAGEF
 try:
 	screenWidth = getDesktop(0).size().width()
 except:
-	screenWidth = 1920
+	screenWidth = 720
 
 class OMBManagerList(Screen):
 	if screenWidth >= 1920:
@@ -71,6 +71,7 @@ class OMBManagerList(Screen):
 			<ePixmap name="green" pixmap="skin_default/buttons/green.png" position="250,540" size="250,60" zPosition="4" transparent="1" alphatest="on" />
 			<ePixmap name="yellow" pixmap="skin_default/buttons/yellow.png" position="500,540" size="250,60" zPosition="4" transparent="1" alphatest="on" />
 			<ePixmap name="blue" pixmap="skin_default/buttons/blue.png" position="750,540" size="250,60" zPosition="4" transparent="1" alphatest="on" />
+
 			<ePixmap name="info" pixmap="skin_default/buttons/key_info.png" position="920,490" size="50,50" zPosition="4" transparent="1" alphatest="on" />
 			<widget name="key_ok" position="0,500" size="900,30" zPosition="5" transparent="1" foregroundColor="#00ffc000" font="Regular;27" />
 		</screen>"""
@@ -131,12 +132,10 @@ class OMBManagerList(Screen):
 			"info": self.keyAbout,
 			"ok": self.KeyOk
 		})
-
 		self.setrcType()
 		self.checktimer = eTimer()
 		if self.checkflashImage():
 			self.checktimer.start(2000, True)
-
 
 	def guessImageTitle(self, base_path, identifier):
 		image_distro = ""
@@ -364,62 +363,38 @@ class OMBManagerList(Screen):
 						os.system("cp /usr/lib/enigma2/python/boxbranding.so " + base_path + "/usr/lib/enigma2/python/boxbranding.so")
 
 	def isCompatible(self, base_path):
-		running_box_type = "None"
-		e2_path = '/usr/lib/enigma2/python'
-		if os.path.exists(e2_path + '/boxbranding.so'):
-			helper = os.path.dirname("/usr/bin/python " + os.path.abspath(__file__)) + "/open-multiboot-branding-helper.py"
+		running_box_type = BOX_NAME
+		if BOX_MODEL == "vuplus" and BOX_NAME and BOX_NAME[0:2] != "vu":
+			running_box_type = "vu" + BOX_NAME
+		if running_box_type == "et11000":
+			running_box_type = "et1"
+		if running_box_type == "lunix3-4k":
+			running_box_type = "lunix3"
+		archconffile = "%s/etc/hostname" % base_path
+		if os.path.exists(archconffile):
+			f = open(archconffile, "r")
 			try:
-				fin,fout = os.popen4(helper + " " + e2_path + " box_type")
+				box_type = str(f.read().lower().replace('\n',''))
 			except:
-				fout = os.popen(helper + " " + e2_path + " box_type")				
-			running_box_type = fout.read().strip()
-
-		e2_path = base_path + '/usr/lib/enigma2/python'
-		if os.path.exists(e2_path + '/boxbranding.so'):
-			helper = os.path.dirname("/usr/bin/python " + os.path.abspath(__file__)) + "/open-multiboot-branding-helper.py"
-			try:
-				fin,fout = os.popen4(helper + " " + e2_path + " brand_oem")
-			except:
-				fout = os.popen(helper + " " + e2_path + " brand_oem")				
-			brand_oem = fout.read().strip()
-			try:
-				fin,fout = os.popen4(helper + " " + e2_path + " box_type")
-			except:
-				fout = os.popen(helper + " " + e2_path + " box_type")
-			box_type = fout.read().strip()
-
-			if brand_oem == "vuplus" and box_type[0:2] != "vu":
-				box_type = "vu" + box_type
-				print "OMB: buggy image, fixed box_type is %s" % box_type
-
-			if box_type == "et11000":
-				box_type = "et1"
-			if box_type == "lunix3-4k":
-				box_type = "lunix3"
-
-			if brand_oem == 'formuler':
-				if running_box_type != "formuler4turbo" or box_type != "formuler4turbo":
-					running_box_type = running_box_type[:9]
-					box_type = box_type[:9]
-
-			print "DEBUG",base_path, running_box_type , box_type
-			return (running_box_type == box_type)
-
+				pass
+			f.close()
+		if running_box_type == box_type or running_box_type in box_type:
+			return True
+		
 		try:
-			if running_box_type is None:
-				running_box_type = BOX_NAME
-				if BOX_MODEL == "vuplus" and BOX_NAME and BOX_NAME[0:2] != "vu":
-					running_box_type = "vu" + BOX_NAME
-			if running_box_type == "et11000":
-				running_box_type = "et1"
-			if running_box_type == "lunix3-4k":
-				running_box_type = "lunix3"
 			archconffile = "%s/etc/opkg/arch.conf" % base_path
 			with open(archconffile, "r") as arch:
 				for line in arch:
 					box_type = line.split()[1]
 					if running_box_type == box_type or running_box_type in line:
 						return True
+			archconffile = "%s/etc/image-version" % base_path
+			if os.path.exists(archconffile):
+				with open(archconffile, "r") as arch:
+					for line in arch:
+						box_type = line.split()[2]
+						if running_box_type == box_type or running_box_type in line:
+							return True
 		except:
 			pass
 

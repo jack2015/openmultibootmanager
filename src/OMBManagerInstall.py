@@ -26,19 +26,28 @@ from Screens.MessageBox import MessageBox
 from Components.ActionMap import ActionMap
 from Components.Label import Label
 from Components.Sources.List import List
-
+from Components.Button import Button
 from Tools.Directories import fileExists
-
+from Tools.HardwareInfo import HardwareInfo
+from Screens.ChoiceBox import ChoiceBox
+from Components.config import config
 from OMBManagerCommon import OMB_MAIN_DIR, OMB_DATA_DIR, OMB_UPLOAD_DIR, OMB_TMP_DIR
 from OMBManagerLocale import _
-
-from enigma import eTimer
-
+from enigma import eTimer, getDesktop
 import os
 import glob
 import struct
 import fileinput
 
+try:
+	screenWidth = getDesktop(0).size().width()
+except:
+	screenWidth = 720
+
+try:
+	device_name = HardwareInfo().get_device_name()
+except:
+	device_name = None
 
 BOX_MODEL = ""
 BOX_NAME = ""
@@ -263,6 +272,7 @@ else:
 				break
 	f.close()
 
+
 OMB_DD_BIN = '/bin/dd'
 OMB_CP_BIN = '/bin/cp'
 OMB_RM_BIN = '/bin/rm'
@@ -281,60 +291,103 @@ OMB_UNJFFS2_BIN = '/usr/bin/unjffs2'
 OMB_NFIDUMP_BIN = '/usr/sbin/nfidump'
 
 class OMBManagerInstall(Screen):
-	skin = """
-			<screen position="360,150" size="560,400">
-				<widget name="info"
-						position="10,10"
-						size="540,50"
-						font="Regular;18"
-						zPosition="1" />
-				<widget source="list"
-						render="Listbox"
-						position="10,60"
-						zPosition="1"
-						size="540,330"
-						scrollbarMode="showOnDemand"
-						transparent="1" >
-						
+	if screenWidth >= 1920:
+		skin = """
+			<screen position="center,center" size="1000,500">
+				<widget name="info" position="20,10" size="940,35" font="Regular;33" zPosition="1" foregroundColor="green" />
+				<widget source="list" render="Listbox" position="20,80" itemHeight="35" zPosition="1" font="Regular;33" size="940,350" scrollbarMode="showOnDemand" transparent="1" >
 					<convert type="StringList" />
 				</widget>
+				<widget name="key_red" position="0,440" size="230,35" zPosition="5" transparent="1" foregroundColor="white" font="Regular;33" />
+				<widget name="key_green" position="240,440" size="230,35" zPosition="5" transparent="1" foregroundColor="white" font="Regular;33" />
+				<widget name="key_yellow" position="500,440" size="230,35" zPosition="5" transparent="1" foregroundColor="white" font="Regular;33" />
+				<ePixmap name="red" pixmap="skin_default/buttons/red.png" position="0,430" size="250,60" zPosition="4" transparent="1" alphatest="on" />
+				<ePixmap name="green" pixmap="skin_default/buttons/green.png" position="250,430" size="250,60" zPosition="4" transparent="1" alphatest="on" />
+				<ePixmap name="yellow" pixmap="skin_default/buttons/yellow.png" position="500,430" size="250,60" zPosition="4" transparent="1" alphatest="on" />
 			</screen>"""
-			
+	else:
+		skin = """
+			<screen position="center,center" size="560,400">
+				<widget name="info" position="10,10" size="540,21" font="Regular;18" zPosition="1" foregroundColor="green" />
+				<widget source="list" render="Listbox" position="10,40" zPosition="1" size="540,200" scrollbarMode="showOnDemand" transparent="1" >
+					<convert type="StringList" />
+				</widget>
+				<widget name="key_red" position="0,360" size="140,40" valign="center" halign="center" zPosition="5" transparent="1" foregroundColor="white" font="Regular;17" />
+				<widget name="key_green" position="140,360" size="140,40" valign="center" halign="center" zPosition="5" transparent="1" foregroundColor="white" font="Regular;17" />
+				<widget name="key_yellow" position="280,360" size="140,40" valign="center" halign="center" zPosition="5" transparent="1" foregroundColor="white" font="Regular;17" />
+				<ePixmap name="red" pixmap="skin_default/buttons/red.png" position="0,360" size="140,40" zPosition="4" transparent="1" alphatest="on" />
+				<ePixmap name="green" pixmap="skin_default/buttons/green.png" position="140,360" size="140,40" zPosition="4" transparent="1" alphatest="on" />
+				<ePixmap name="yellow" pixmap="skin_default/buttons/yellow.png" position="280,360" size="140,40" zPosition="4" transparent="1" alphatest="on" />
+			</screen>"""
+
 	def __init__(self, session, mount_point, upload_list):
 		Screen.__init__(self, session)
-		
 		self.setTitle(_('openMultiboot Install'))
-
 		self.session = session
 		self.mount_point = mount_point
-
+		self.alt_install = False
 		self.esize = "128KiB"
 		self.vid_offset = "2048"
 		self.nandsim_parm = "first_id_byte=0x20 second_id_byte=0xac third_id_byte=0x00 fourth_id_byte=0x15"
-
 		self['info'] = Label(_("Choose the image to install"))
 		self["list"] = List(upload_list)
-		self["actions"] = ActionMap(["SetupActions"],
+		self["key_red"] = Button(_('Exit'))
+		self["key_yellow"] = Button(_('Delete'))
+		self["key_green"] = Button(_('Install'))
+		self["actions"] = ActionMap(["SetupActions", "ColorActions"],
 		{
 			"cancel": self.keyCancel,
+			"red": self.keyCancel,
+			"yellow": self.keyDelete,
+			"green": self.keyInstall,
 			"ok": self.keyInstall
 		})
 
 	def keyCancel(self):
-		self.close()
+		self.close(None)
+
+	def keyDelete(self):
+		selected_image = self["list"].getCurrent()
+		if not selected_image:
+			return
+		source_file = selected_image + '.zip'
+		self.session.openWithCallback(self.deleteConfirm, MessageBox, _("Do you want to delete %s?") % source_file, MessageBox.TYPE_YESNO)
+
+	def deleteConfirm(self, confirmed):
+		if confirmed:
+			selected_image = self["list"].getCurrent()
+			if not selected_image:
+				return
+			source_file = self.mount_point + '/' + OMB_UPLOAD_DIR + '/' + selected_image + '.zip'
+			ret = os.system(OMB_RM_BIN + ' -rf ' + source_file)
+			if ret == 0:
+				self.close()
+			else:
+				self.session.open(MessageBox, _("Error removing zip archive!"), type = MessageBox.TYPE_ERROR)
 
 	def keyInstall(self):
+		text = _("Please select the necessary option...")
+		menu = [(_("Standard install"), "standard"), (_("Use altenative folder"), "altenative")]
+		def setAction(choice):
+			if choice:
+				if choice[1] == "standard":
+					self.alt_install = False
+					self.keyPostInstall()
+				elif choice[1] == "altenative":
+					self.alt_install = True
+					self.keyPostInstall()
+		dlg = self.session.openWithCallback(setAction, ChoiceBox, title=text, list=menu)
+
+	def keyPostInstall(self):
 		self.selected_image = self["list"].getCurrent()
 		if not self.selected_image:
 			return
-
 		self.messagebox = self.session.open(MessageBox, _('Please wait while installation is in progress.\nThis operation may take a while.'), MessageBox.TYPE_INFO, enable_input = False)
 		self.timer = eTimer()
 		self.timer.callback.append(self.installPrepare)
 		self.timer.start(100)
 		self.error_timer = eTimer()
 		self.error_timer.callback.append(self.showErrorCallback)
-
 
 	def showErrorCallback(self):
 		self.error_timer.stop()
@@ -351,19 +404,15 @@ class OMBManagerInstall(Screen):
 		prefix = self.mount_point + '/' + OMB_DATA_DIR + '/'
 		if not os.path.exists(prefix + selected_image):
 			return selected_image
-
 		count = 1
 		while os.path.exists(prefix + selected_image + '_' + str(count)):
 			count += 1
-
 		return selected_image + '_' + str(count)
 
 	def installPrepare(self):
 		self.timer.stop()
-
 		selected_image = self.selected_image
 		selected_image_identifier = self.guessIdentifierName(selected_image)
-
 		source_file = self.mount_point + '/' + OMB_UPLOAD_DIR + '/' + selected_image + '.zip'
 		target_folder = self.mount_point + '/' + OMB_DATA_DIR + '/' + selected_image_identifier
 		kernel_target_folder = self.mount_point + '/' + OMB_DATA_DIR + '/.kernels'
@@ -382,17 +431,14 @@ class OMBManagerInstall(Screen):
 			except OSError as exception:
 				self.showError(_("Cannot create kernel folder %s") % kernel_target_folder)
 				return
-
 		if os.path.exists(target_folder):
 			self.showError(_("The folder %s already exist") % target_folder)
 			return
-
 		try:
 			os.makedirs(target_folder)
 		except OSError as exception:
 			self.showError(_("Cannot create folder %s") % target_folder)
 			return
-
 		tmp_folder = self.mount_point + '/' + OMB_TMP_DIR
 		if os.path.exists(tmp_folder):
 			os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
@@ -403,11 +449,9 @@ class OMBManagerInstall(Screen):
 		except OSError as exception:
 			self.showError(_("Cannot create folder %s") % tmp_folder)
 			return
-
 		if os.system(OMB_UNZIP_BIN + ' ' + source_file + ' -d ' + tmp_folder) != 0:
 			self.showError(_("Cannot deflate image"))
 			return
-
 		nfifile = glob.glob('%s/*.nfi' % tmp_folder)
 		tarxzfile = glob.glob('%s/*.rootfs.tar.xz' % tmp_folder)
 		if nfifile:
@@ -425,7 +469,7 @@ class OMBManagerInstall(Screen):
 						os.system(OMB_RM_BIN + ' -f ' + source_file)
 						os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 						self.messagebox.close()
-						self.close()
+						self.close(target_folder)
 					return
 				if not self.extractImageNFI(nfifile[0], tmp_folder):
 					self.showError(_("Cannot extract nfi image"))
@@ -439,7 +483,7 @@ class OMBManagerInstall(Screen):
 						os.system(OMB_RM_BIN + ' -f ' + source_file)
 						os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 						self.messagebox.close()
-						self.close()
+						self.close(target_folder)
 			else:
 				self.showError(_("Your STB doesn\'t seem supported"))
 		if tarxzfile:
@@ -452,7 +496,7 @@ class OMBManagerInstall(Screen):
 					os.system(OMB_RM_BIN + ' -f ' + source_file)
 					os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 					self.messagebox.close()
-					self.close()
+					self.close(target_folder)
 			else:
 				self.showError(_("Error unpacking rootfs"))
 				os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
@@ -460,7 +504,7 @@ class OMBManagerInstall(Screen):
 			os.system(OMB_RM_BIN + ' -f ' + source_file)
 			os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 			self.messagebox.close()
-			self.close()
+			self.close(target_folder)
 		else:
 			os.system(OMB_RM_BIN + ' -rf ' + tmp_folder)
 
@@ -476,19 +520,23 @@ class OMBManagerInstall(Screen):
 			return False
 
 	def installImageTARBZ2(self, src_path, dst_path, kernel_dst_path, tmp_folder):
-		base_path = src_path + '/' + OMB_GETIMAGEFOLDER
+		base_path = src_path + '/' + (self.alt_install and config.plugins.omb.alternative_image_folder.value or OMB_GETIMAGEFOLDER)
 		rootfs_path = base_path + '/' + OMB_GETMACHINEROOTFILE
 		kernel_path = base_path + '/' + OMB_GETMACHINEKERNELFILE
-
+		if BOX_NAME == "hd51" or BOX_NAME == "vs1500" or BOX_NAME == "e4hd":
+			if OMB_GETMACHINEKERNELFILE == "kernel1.bin" and not os.path.exists(kernel_path):
+				kernel_path = base_path + '/' + "kernel.bin"
 		if os.system(OMB_TAR_BIN + ' jxf %s -C %s' % (rootfs_path,dst_path)) != 0:
 			self.showError(_("Error unpacking rootfs"))
 			return False
-
 		if os.path.exists(dst_path + '/usr/bin/enigma2'):
 			if os.system(OMB_CP_BIN + ' ' + kernel_path + ' ' + kernel_dst_path) != 0:
 				self.showError(_("Error copying kernel"))
 				return False
-
+		else:
+			self.showError(_("Error unpacking rootfs"))
+			return False
+		self.afterInstallImage(dst_path)
 		return True
 
 	def installImageJFFS2(self, src_path, dst_path, kernel_dst_path, tmp_folder):
@@ -498,17 +546,14 @@ class OMBManagerInstall(Screen):
 			mtdfile = "/dev/mtdblock%d" % i
 			if not os.path.exists(mtdfile):
 				break
-
-		base_path = src_path + '/' + OMB_GETIMAGEFOLDER
+		base_path = src_path + '/' + (self.alt_install and config.plugins.omb.alternative_image_folder.value or OMB_GETIMAGEFOLDER)
 		rootfs_path = base_path + '/' + OMB_GETMACHINEROOTFILE
 		kernel_path = base_path + '/' + OMB_GETMACHINEKERNELFILE
 		jffs2_path = src_path + '/jffs2'
-
 		if os.path.exists(OMB_UNJFFS2_BIN):
 			if os.system("%s %s %s" % (OMB_UNJFFS2_BIN, rootfs_path, jffs2_path)) != 0:
 				self.showError(_("Error unpacking rootfs"))
 				rc = False
-
 			if os.path.exists(jffs2_path + '/usr/bin/enigma2'):
 				if os.system(OMB_CP_BIN + ' -rp ' + jffs2_path + '/* ' + dst_path) != 0:
 					self.showError(_("Error copying unpacked rootfs"))
@@ -524,7 +569,6 @@ class OMBManagerInstall(Screen):
 			os.system(OMB_LOSETUP_BIN + ' /dev/loop0 ' + rootfs_path)
 			os.system(OMB_ECHO_BIN + ' "/dev/loop0,%s" > /sys/module/block2mtd/parameters/block2mtd' % self.esize)
 			os.system(OMB_MOUNT_BIN + ' -t jffs2 ' + mtdfile + ' ' + jffs2_path)
-
 			if os.path.exists(jffs2_path + '/usr/bin/enigma2'):
 				if os.system(OMB_CP_BIN + ' -rp ' + jffs2_path + '/* ' + dst_path) != 0:
 					self.showError(_("Error copying unpacked rootfs"))
@@ -533,14 +577,13 @@ class OMBManagerInstall(Screen):
 					self.showError(_("Error copying kernel"))
 					rc = False
 			else:
-				self.showError(_("Generic error in unpack process"))
+				self.showError(_("Generic error in unpaack process"))
 				rc = False
-
 			os.system(OMB_UMOUNT_BIN + ' ' + jffs2_path)
 			os.system(OMB_RMMOD_BIN + ' block2mtd')
 			os.system(OMB_RMMOD_BIN + ' mtdblock')
 			os.system(OMB_RMMOD_BIN + ' loop')
-
+		self.afterInstallImage(dst_path)
 		return rc
 
 	def installImageUBI(self, src_path, dst_path, kernel_dst_path, tmp_folder):
@@ -550,18 +593,19 @@ class OMBManagerInstall(Screen):
 			if os.path.exists(mtdfile) is False:
 				break
 		mtd = str(i)
-
-		base_path = src_path + '/' + OMB_GETIMAGEFOLDER
+		base_path = src_path + '/' + (self.alt_install and config.plugins.omb.alternative_image_folder.value or OMB_GETIMAGEFOLDER)
 		rootfs_path = base_path + '/' + OMB_GETMACHINEROOTFILE
 		kernel_path = base_path + '/' + OMB_GETMACHINEKERNELFILE
 		ubi_path = src_path + '/ubi'
-
 		# This is idea from EGAMI Team to handle universal UBIFS unpacking - used only for INI-HDp model
 		if OMB_GETMACHINEBUILD in ('inihdp'):
 			if fileExists("/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/ubi_reader/ubi_extract_files.py"):
 				ubifile = "/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/ubi_reader/ubi_extract_files.py"
-			else:
+			elif fileExists("/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/ubi_reader/ubi_extract_files.pyo"):
 				ubifile = "/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/ubi_reader/ubi_extract_files.pyo"
+			else:
+				self.showError(_("Your STB doesn\'t seem supported"))
+				return False
 			cmd= "chmod 755 " + ubifile
 			rc = os.system(cmd)
 			cmd = "python " + ubifile + " " + rootfs_path + " -o " + ubi_path
@@ -574,21 +618,18 @@ class OMBManagerInstall(Screen):
 			rc = os.system(cmd)
 			os.system(OMB_CP_BIN + ' ' + kernel_path + ' ' + kernel_dst_path)
 			return True
-
 		virtual_mtd = tmp_folder + '/virtual_mtd'
 		os.system(OMB_MODPROBE_BIN + ' nandsim cache_file=' + virtual_mtd + ' ' + self.nandsim_parm)
 		if not os.path.exists('/dev/mtd' + mtd):
 			os.system('rmmod nandsim')
 			self.showError(_("Cannot create virtual MTD device"))
 			return False
-
 		if not os.path.exists('/dev/mtdblock' + mtd):
 			os.system(OMB_DD_BIN + ' if=' + rootfs_path + ' of=/dev/mtd' + mtd + ' bs=2048')
 		else:
 			os.system(OMB_DD_BIN + ' if=' + rootfs_path + ' of=/dev/mtdblock' + mtd + ' bs=2048')
 		os.system(OMB_UBIATTACH_BIN + ' /dev/ubi_ctrl -m ' + mtd + ' -O ' + self.vid_offset)
 		os.system(OMB_MOUNT_BIN + ' -t ubifs ubi1_0 ' + ubi_path)
-
 		if os.path.exists(ubi_path + '/usr/bin/enigma2'):
 			if os.system(OMB_CP_BIN + ' -rp ' + ubi_path + '/* ' + dst_path) != 0:
 				self.showError(_("Error copying unpacked rootfs"))
@@ -597,15 +638,12 @@ class OMBManagerInstall(Screen):
 				self.showError(_("Error copying kernel"))
 				rc = False
 		else:
-			self.showError(_("Generic error in unpack process"))
+			self.showError(_("Generic error in unpaack process"))
 			rc = False
-
 		os.system(OMB_UMOUNT_BIN + ' ' + ubi_path)
 		os.system(OMB_UBIDETACH_BIN + ' -m ' + mtd)
 		os.system(OMB_RMMOD_BIN + ' nandsim')
-
 		self.afterInstallImage(dst_path)
-
 		return rc
 
 	def extractImageNFI(self, nfifile, extractdir):

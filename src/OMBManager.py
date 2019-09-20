@@ -21,18 +21,16 @@
 #############################################################################
 
 from Components.Harddisk import harddiskmanager
-
 from Screens.MessageBox import MessageBox
 from Screens.Console import Console
 from OMBManagerList import OMBManagerList
 from OMBManagerCommon import OMB_MAIN_DIR, OMB_DATA_DIR, OMB_UPLOAD_DIR
-from OMBManagerInstall import OMB_GETIMAGEFILESYSTEM, OMB_UNJFFS2_BIN, BRANDING, OMB_NFIDUMP_BIN, BOX_NAME, BOX_MODEL
+from OMBManagerInstall import OMB_GETIMAGEFILESYSTEM, OMB_UNJFFS2_BIN, BOX_MODEL, BOX_NAME, BRANDING, OMB_NFIDUMP_BIN
 from OMBManagerLocale import _
-
 from enigma import eTimer
-
 import os
 
+nandsim_alrenative_module = [] #['formuler1', 'formuler3', 'formuler4']
 loadScript = "/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot/install-nandsim.sh"
 
 class OMBManagerInit:
@@ -41,30 +39,30 @@ class OMBManagerInit:
 
 		message = _("Where do you want to install openMultiboot?")
 		disks_list = []
-		for partition in harddiskmanager.getMountedPartitions():
-			if partition and partition.mountpoint and partition.device and partition.mountpoint != '/' and partition.device[:2] == 'sd':
-				disks_list.append((partition.description, partition))
+		for p in harddiskmanager.getMountedPartitions():
+			if p and os.path.exists(p.mountpoint) and os.access(p.mountpoint, os.F_OK|os.R_OK) and p.device and p.mountpoint != '/' and (p.device[:2] == 'sd' or (p.device.startswith('mmcblk0p') and BOX_NAME not in ('sf8008', 'sf5008', 'et13000', 'et11000','et1x000', 'duo4k', 'uno4k', 'uno4kse', 'ultimo4k', 'solo4k', 'zero4k', 'hd51', 'hd52', 'dm820', 'dm7080', 'sf4008', 'dm900', 'dm920', 'gbquad4k', 'gbue4k', 'lunix3-4k', 'lunix-4k', 'vs1500', 'h7', '8100s', 'e4hd', 'gbmv200', 'multibox', 'h9combo', 'h10', 'v8plus', 'hd60', 'hd61'))) and isMounted(p.mountpoint):
+				disks_list.append((p.description + ' (%s)' % p.mountpoint, p))
 
 		if len(disks_list) > 0:
 			disks_list.append((_("Cancel"), None))
 			self.session.openWithCallback(self.initCallback, MessageBox, message, list=disks_list)
 		else:
-			self.session.open(
-				MessageBox,
-				_("No suitable devices found"),
-				type = MessageBox.TYPE_ERROR
-			)
+			self.session.open(MessageBox, _("No suitable devices found"), type = MessageBox.TYPE_ERROR)
 
 	def getFSType(self, device):
-		fin,fout = os.popen4("mount | cut -f 1,5 -d ' '")
-		tmp = fout.read().strip()
+		try:
+			fin,fout = os.popen4("mount | cut -f 1,5 -d ' '")
+			tmp = fout.read().strip()
+		except:
+			fout = os.popen("mount | cut -f 1,5 -d ' '")
+			tmp = fout.read().strip()
 		for line in tmp.split('\n'):
 			parts = line.split(' ')
 			if len(parts) == 2:
 				if parts[0] == '/dev/' + device:
 					return parts[1]
 		return  "none"
-		
+
 	def createDir(self, partition):
 		data_dir = partition.mountpoint + '/' + OMB_DATA_DIR
 		upload_dir = partition.mountpoint + '/' + OMB_UPLOAD_DIR
@@ -76,20 +74,18 @@ class OMBManagerInit:
 		except OSError as exception:
 			self.session.open(MessageBox, _("Cannot create data folder"), type = MessageBox.TYPE_ERROR)
 			return
-# by Meo. We are installing in flash. We can link init to open_multiboot
-# so we can disable it in open multiboot postinst.
-# In this way we will be sure to have not open_multiboot init in mb installed images.
+
 		if os.path.isfile('/sbin/open_multiboot'):
 			os.system("ln -sfn /sbin/open_multiboot /sbin/init")
-				
+
 		self.session.open(OMBManagerList, partition.mountpoint)
-	
+
 	def formatDevice(self, confirmed):
 		if confirmed:
-			self.messagebox = self.session.open(MessageBox, _('Please wait while format is in progress.'), MessageBox.TYPE_INFO, enable_input = False)
+			self.messagebox = self.session.open(MessageBox, _('Please wait while format is in progress.'), type = MessageBox.TYPE_INFO, enable_input=False)
 			self.timer = eTimer()
 			self.timer.callback.append(self.doFormatDevice)
-			self.timer.start(100)
+			self.timer.start(100, True)
 
 	def doFormatDevice(self):
 		self.timer.stop()
@@ -97,54 +93,47 @@ class OMBManagerInit:
 		if os.system('umount /dev/' + self.response.device) != 0:
 			self.error_message = _('Cannot umount the device')
 		else:
-			if os.system('/sbin/mkfs.ext4 -F /dev/' + self.response.device) != 0:
+			if os.system('/sbin/mkfs.ext4 /dev/' + self.response.device) != 0:
 				self.error_message = _('Cannot format the device')
 			else:
 				if os.system('mount /dev/' + self.response.device + ' ' + self.response.mountpoint) != 0:
 					self.error_message = _('Cannot remount the device')
-				
 		self.messagebox.close()
 		self.timer = eTimer()
 		self.timer.callback.append(self.afterFormat)
-		self.timer.start(100)
-		
+		self.timer.start(100, True)
+
 	def afterFormat(self):
 		self.timer.stop()
 		if len(self.error_message) > 0:
-			self.session.open(
-				MessageBox,
-				self.error_message,
-				type = MessageBox.TYPE_ERROR
-			)
+			self.session.open(MessageBox, self.error_message, type = MessageBox.TYPE_ERROR)
 		else:
 			self.createDir(self.response)
-			
+
 	def initCallback(self, response):
 		if response:
 			fs_type = self.getFSType(response.device)
 			if fs_type not in ['ext3', 'ext4']:
 				self.response = response
-				self.session.openWithCallback(
-					self.formatDevice,
-					MessageBox,
-					_("Filesystem not supported\nDo you want format your drive?"),
-					type = MessageBox.TYPE_YESNO
-				)
+				self.session.openWithCallback( self.formatDevice, MessageBox, _("Filesystem not supported\nDo you want format your drive?"), type = MessageBox.TYPE_YESNO, default=False)
 			else:
 				self.createDir(response)
 
 class OMBManagerKernelModule:
-	def __init__(self, session, kernel_module):
+	def __init__(self, session, kernel_module, branding=False):
 		self.session = session
 		self.kernel_module = kernel_module
-
+		if branding:
+			self.timer = eTimer()
+			self.timer.callback.append(self.warningMessage)
+			self.timer.start(500, True)
+			return
 		message = _("You need the module ") + self.kernel_module + _(" to use openMultiboot\nDo you want install it?")
-		disks_list = []
-		for partition in harddiskmanager.getMountedPartitions():
-			if partition.mountpoint != '/':
-				disks_list.append((partition.description, partition.mountpoint))
-
 		self.session.openWithCallback(self.installCallback, MessageBox, message, MessageBox.TYPE_YESNO)
+
+	def warningMessage(self):
+		self.timer.stop()
+		self.session.open(MessageBox, _('Not found boxbranding.so!'),type = MessageBox.TYPE_ERROR)
 
 	def installCallback(self, confirmed):
 		if confirmed:
@@ -178,42 +167,63 @@ class OMBManagerKernelModule:
 			self.session.open(MessageBox, self.error_message, type = MessageBox.TYPE_ERROR)
 		else:
 			OMBManager(self.session)
-			
+
+	def alterInstallCallback(self, confirmed):
+		if confirmed:
+			os.system("chmod 755 %s" % loadScript)
+			cmd = "%s %s" % (loadScript, BOX_NAME)
+			text = _("Install")
+			self.session.openWithCallback(self.afterLoadInstall, Console, text, [cmd])
+
+	def afterLoadInstall(self):
+		if os.system('opkg list_installed | grep ' + self.kernel_module) != 0:
+			self.error_message = _('Cannot install ') + self.kernel_module
+			self.session.open(MessageBox, self.error_message, type = MessageBox.TYPE_ERROR)
+		else:
+			OMBManager(self.session)
+
 	def afterInstall(self):
 		self.timer.stop()
 		if len(self.error_message) > 0:
-			self.session.open(
-				MessageBox,
-				self.error_message,
-				type = MessageBox.TYPE_ERROR
-			)
+			if self.kernel_module == 'kernel-module-nandsim' and nandsim_alrenative_module and BOX_NAME:
+				for name in nandsim_alrenative_module:
+					if BOX_NAME == name:
+						message = _("You want to install an alternative kernel-module-nandsim?\nLinux version may be different from the module!")
+						self.session.openWithCallback(self.alterInstallCallback, MessageBox, message, MessageBox.TYPE_YESNO)
+						return
+			self.session.open(MessageBox, self.error_message, type = MessageBox.TYPE_ERROR)
 		else:
-			OMBManager(self.session);
-		
+			OMBManager(self.session)
+
 def OMBManager(session, **kwargs):
 	found = False
+	omb_image = os.path.ismount('/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot')
 
-	kernel_module = 'kernel-module-nandsim'
-	if "jffs2" in OMB_GETIMAGEFILESYSTEM and BOX_MODEL != "dreambox":
-		if os.path.exists(OMB_UNJFFS2_BIN):
+	if not omb_image:
+		kernel_module = 'kernel-module-nandsim'
+		if "jffs2" in OMB_GETIMAGEFILESYSTEM and BOX_MODEL != "dreambox":
+			if os.path.exists(OMB_UNJFFS2_BIN):
+				kernel_module = None
+			else:
+				kernel_module = 'kernel-module-block2mtd'
+
+		if "tar.bz2" in OMB_GETIMAGEFILESYSTEM:
 			kernel_module = None
-		else:
-			kernel_module = 'kernel-module-block2mtd'
 
-	if "tar.bz2" in OMB_GETIMAGEFILESYSTEM:
-		kernel_module = None
-		
-	# When use nfidump
-	if BOX_MODEL == "dreambox":
-		kernel_module = None
-		if BOX_NAME == "dm500hd" or BOX_NAME == "dm800" or BOX_NAME == "dm800se" or BOX_NAME == "dm7020hd" or BOX_NAME == "dm7020hdv2" or BOX_NAME == "dm8000" or BOX_NAME == "dm500hdv2" or BOX_NAME == "dm800sev2":
-			if not os.path.exists(OMB_NFIDUMP_BIN):
-				OMBManagerKernelModule(session, "nfidump")
-				return
-	
-	if kernel_module and os.system('opkg list_installed | grep ' + kernel_module) != 0 and BRANDING:
-		OMBManagerKernelModule(session, kernel_module)
-		return
+		# When use nfidump
+		if BOX_MODEL == "dreambox":
+			kernel_module = None
+			if BOX_NAME == "dm500hd" or BOX_NAME == "dm800" or BOX_NAME == "dm800se" or BOX_NAME == "dm7020hd" or BOX_NAME == "dm7020hdv2" or BOX_NAME == "dm8000" or BOX_NAME == "dm500hdv2" or BOX_NAME == "dm800sev2":
+				if not os.path.exists(OMB_NFIDUMP_BIN):
+					OMBManagerKernelModule(session, "nfidump")
+					return
+
+		if not BRANDING:
+			OMBManagerKernelModule(session, kernel_module, branding=True)
+
+		if kernel_module and os.system('opkg list_installed | grep ' + kernel_module) != 0 and BRANDING:
+			OMBManagerKernelModule(session, kernel_module)
+			return
 
 	data_dir = OMB_MAIN_DIR + '/' + OMB_DATA_DIR
 	if os.path.exists(data_dir):
@@ -226,13 +236,13 @@ def OMBManager(session, **kwargs):
 				if os.path.exists(data_dir) and os.access(p.mountpoint, os.F_OK|os.R_OK) and isMounted(p.mountpoint):
 					if not os.path.ismount('/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot'):
 						if os.readlink("/sbin/init") == "/sbin/init.sysvinit":
-							if os.path.isfile('/sbin/open_multiboot'):
+							if os.path.isfile('open_multiboot'):
 								os.system("ln -sfn /sbin/open_multiboot /sbin/init")
 					session.open(OMBManagerList, p.mountpoint)
 					found = True
 					break
 	if not found:
-		if not os.path.ismount('/usr/lib/enigma2/python/Plugins/Extensions/OpenMultiboot'):
+		if not omb_image:
 			OMBManagerInit(session)
 
 def isMounted(device):
@@ -243,4 +253,3 @@ def isMounted(device):
 	except:
 		pass
 	return False
-
