@@ -69,14 +69,12 @@ class OMBManagerInit:
 		data_dir = partition.mountpoint + '/' + OMB_DATA_DIR
 		upload_dir = partition.mountpoint + '/' + OMB_UPLOAD_DIR
 		try:
-			os.makedirs(data_dir)
-			os.makedirs(upload_dir)
+			if not os.path.exists(data_dir):
+				os.makedirs(data_dir)
+			if not os.path.exists(upload_dir):
+				os.makedirs(upload_dir)
 		except OSError as exception:
-			self.session.open(
-				MessageBox,
-				_("Cannot create data folder"),
-				type = MessageBox.TYPE_ERROR
-			)
+			self.session.open(MessageBox, _("Cannot create data folder"), type = MessageBox.TYPE_ERROR)
 			return
 # by Meo. We are installing in flash. We can link init to open_multiboot
 # so we can disable it in open multiboot postinst.
