@@ -9,7 +9,7 @@ msgstr ""
 "Project-Id-Version: \n"
 "Report-Msgid-Bugs-To: \n"
 "POT-Creation-Date: 2014-11-15 17:16+0100\n"
-"PO-Revision-Date: 2019-10-14 15:35+0800\n"
+"PO-Revision-Date: 2019-10-14 22:34+0800\n"
 "Last-Translator: neoatomic <neoatomic@users.noreply.github.com>\n"
 "Language-Team: German <arn354@email.de>\n"
 "Language: zh_CN\n"
@@ -41,7 +41,7 @@ msgid "Add zip archive with image in 'open-multiboot-upload'"
 msgstr "请在目录\"open-multiboot-upload\"内上传用zip打包的固件"
 
 msgid "Alternative name image folder"
-msgstr "固件目录替代名"
+msgstr "手工输入固件在压缩档内所在目录"
 
 msgid "Cancel"
 msgstr "取消"
@@ -80,7 +80,7 @@ msgid "Cannot umount the device"
 msgstr "无法卸载设备"
 
 msgid "Choose the image to install"
-msgstr "选择想安装的固件"
+msgstr "选择想要安装的固件"
 
 msgid "Current Running Image:"
 msgstr "目前运行的固件:"
@@ -92,7 +92,7 @@ msgid "Delete folder %s and all file"
 msgstr "删除整个目录 %s"
 
 msgid "Disable OMB plug-in"
-msgstr "禁用OMB插件"
+msgstr "禁用OMB多重引导插件"
 
 msgid "Disable autoscan zip archive at mount device"
 msgstr "禁用自动扫描ZIP压缩档"
@@ -113,7 +113,7 @@ msgid "Do you want to reboot now ?"
 msgstr "现在要重新启动吗?"
 
 msgid "Enable OMB plug-in"
-msgstr "启用OMB插件"
+msgstr "启用OMB多重引导插件"
 
 msgid "Enable autoscan zip archive at mount device"
 msgstr "启用自动扫描ZIP压缩档"
@@ -185,7 +185,7 @@ msgid "Menu"
 msgstr "菜单"
 
 msgid "Multi boot loader for enigma2 box"
-msgstr ""
+msgstr "Enigma2多重引导"
 
 msgid "Next boot: %s"
 msgstr "下一次启动: %s"
@@ -264,7 +264,7 @@ msgid "Timeout boot menu: next %d sec"
 msgstr "启动菜单超时: 下一次 %d 秒"
 
 msgid "Use altenative folder"
-msgstr "使用固件目录替代名"
+msgstr "使用手工输入的固件所在压缩包目录"
 
 msgid ""
 "Warning!\n"
@@ -296,3 +296,6 @@ msgstr "OpenMultiboot 管理"
 
 msgid "zip archive was successfully added to '%s' OMB!"
 msgstr ""
+
+msgid "Press MENU button to setup"
+msgstr "MENU键进行设置"
